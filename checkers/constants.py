@@ -4,13 +4,15 @@ from checkers.enums import CheckerType, SideType
 # Сторона за которую играет игрок
 PLAYER_SIDE = SideType.WHITE
 
+AGAINST_BOT = True
+
 # Размер поля
 X_SIZE = Y_SIZE = 8
 # Размер ячейки (в пикселях)
 CELL_SIZE = 75
 
 # Скорость анимации (больше = быстрее)
-ANIMATION_SPEED = 4
+ANIMATION_SPEED = 6
 
 # Количество ходов для предсказания
 MAX_PREDICTION_DEPTH = 3
@@ -19,7 +21,7 @@ MAX_PREDICTION_DEPTH = 3
 BORDER_WIDTH = 2 * 2
 
 # Цвета игровой доски
-FIELD_COLORS = ['#ffdfbf', '#060423']
+FIELD_COLORS = ['#ffdfbf', '#040318']
 # Цвет рамки при наведении на ячейку мышкой
 HOVER_BORDER_COLOR = '#ad2340'
 # Цвет рамки при выделении ячейки

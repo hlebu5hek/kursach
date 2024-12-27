@@ -11,7 +11,10 @@ from checkers.constants import *
 from checkers.enums import CheckerType, SideType
 
 class Game:
-    def __init__(self, canvas: Canvas, x_field_size: int, y_field_size: int):
+    root = None
+    reboot = None
+
+    def __init__(self, canvas: Canvas, x_field_size: int, y_field_size: int, diff: int, side: SideType, bot: bool, root, reboot):
         self.__canvas = canvas
         self.__field = Field(x_field_size, y_field_size)
 
@@ -25,7 +28,15 @@ class Game:
         
         self.__draw()
 
-        # Если игрок играет за чёрных, то совершить ход противника
+        global PLAYER_SIDE
+        global MAX_PREDICTION_DEPTH
+        global AGAINST_BOT
+        PLAYER_SIDE = side
+        MAX_PREDICTION_DEPTH = diff
+        AGAINST_BOT = bot
+        self.root = root
+        self.reboot = reboot
+
         if (PLAYER_SIDE == SideType.BLACK):
             self.__handle_enemy_turn()
 
@@ -166,18 +177,22 @@ class Game:
 
     def __handle_player_turn(self, move: Move):
         '''Обработка хода игрока'''
+        global PLAYER_SIDE
         self.__player_turn = False
 
         # Была ли убита шашка
         has_killed_checker = self.__handle_move(move)
 
         required_moves_list = list(filter(lambda required_move: move.to_x == required_move.from_x and move.to_y == required_move.from_y, self.__get_required_moves_list(PLAYER_SIDE)))
-        
+
         # Если есть ещё ход этой же шашкой
-        if (has_killed_checker and required_moves_list):
+        if (has_killed_checker and required_moves_list) or not(AGAINST_BOT):
             self.__player_turn = True
+        if not(has_killed_checker and required_moves_list) and not(AGAINST_BOT):
+            PLAYER_SIDE = SideType.opposite(PLAYER_SIDE)
 
         self.__selected_cell = Point()
+        self.__check_for_game_over()
 
     def __handle_enemy_turn(self):
         '''Обработка хода противника (компьютера)'''
@@ -187,7 +202,7 @@ class Game:
 
         for move in optimal_moves_list:
             self.__handle_move(move)
-            
+
         self.__player_turn = True
         
         self.__check_for_game_over()
@@ -196,21 +211,22 @@ class Game:
         '''Проверка на конец игры'''
         game_over = False
 
-        white_moves_list = self.__get_moves_list(SideType.WHITE)
-        if not (white_moves_list):
+        white_ = self.__field.white_score
+        if white_ == 0:
             # Белые проиграли
             answer = messagebox.showinfo('Конец игры', 'Белые выиграли')
             game_over = True
 
-        black_moves_list = self.__get_moves_list(SideType.BLACK)
-        if not (black_moves_list):
+        black_ = self.__field.black_score
+        if black_ == 0:
             # Чёрные проиграли
             answer = messagebox.showinfo('Конец игры', 'Черные выиграли')
             game_over = True
         
         if (game_over):
             # Новая игра
-            self.__init__(self.__canvas, self.__field.x_size, self.__field.y_size)
+            self.root.destroy()
+            self.reboot()
 
     def __predict_optimal_moves(self, side: SideType) -> list[Move]:
         '''Предсказать оптимальный ход'''
@@ -267,18 +283,29 @@ class Game:
 
         if (moves_list and current_prediction_depth < MAX_PREDICTION_DEPTH):
             field_copy = Field.copy(self.__field)
+            #alfa_moves_list = []
+            alfa_res = field_copy.black_score/field_copy.white_score if side == SideType.WHITE else field_copy.white_score/field_copy.black_score
             for move in moves_list:
                 has_killed_checker = self.__handle_move(move, draw=False)
 
-                required_moves_list = list(filter(lambda required_move: move.to_x == required_move.from_x and move.to_y == required_move.from_y, self.__get_required_moves_list(side)))
+                required_moves_list = list(filter(
+                    lambda required_move: move.to_x == required_move.from_x and move.to_y == required_move.from_y,
+                    self.__get_required_moves_list(side)))
 
                 # Если есть ещё ход этой же шашкой
                 if (has_killed_checker and required_moves_list):
-                    self.__get_predicted_moves_list(side, current_prediction_depth, all_moves_list, current_moves_list + [move], required_moves_list)
+                    self.__get_predicted_moves_list(side, current_prediction_depth, all_moves_list,
+                                                    current_moves_list + [move], required_moves_list)
+                elif has_killed_checker:
+                    self.__get_predicted_moves_list(SideType.opposite(side), current_prediction_depth + 1,
+                                                        all_moves_list, current_moves_list + [move])
                 else:
-                    self.__get_predicted_moves_list(SideType.opposite(side), current_prediction_depth + 1, all_moves_list, current_moves_list + [move])
+                    beta_res = self.__field.black_score/self.__field.white_score if side == SideType.WHITE else self.__field.white_score/self.__field.black_score
+                    if beta_res >= alfa_res:
+                        self.__get_predicted_moves_list(SideType.opposite(side), current_prediction_depth + 1,
+                                                        all_moves_list, current_moves_list + [move])
 
-                self.__field = Field.copy(field_copy)
+            self.__field = Field.copy(field_copy)
 
         return all_moves_list
 
